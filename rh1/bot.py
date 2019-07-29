@@ -1027,6 +1027,43 @@ class RH1(discord.Client):
 
         wrapper.mod_cmd = True
         return wrapper
+
+    async def cmd_gh(self, message, channel, author, guild):
+        """
+        Usage: {command_prefix}gh
+        Shows information from github
+        """
+        #stolen from r.danny: https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/stats.py#L218-#L-231
+        def format_commit(self, commit):
+            short, _, _ = commit.message.partition('\n')
+            short_sha2 = commit.hex[0:6]
+            commit_tz = datetime.timezone(datetime.timedelta(minutes=commit.commit_time_offset))
+            commit_time = datetime.datetime.fromtimestamp(commit.commit_time).replace(tzinfo=commit_tz)
+    
+            # [`hash`](url) message (offset)
+            offset = time.human_timedelta(commit_time.astimezone(datetime.timezone.utc).replace(tzinfo=None), accuracy=1)
+            return f'[`{short_sha2}`](https://github.com/srhinos/rsb/commit/{commit.hex}) {short} ({offset})'
+    
+        def get_last_commits(self, count=3):
+            repo = pygit2.Repository('.git')
+            commits = list(itertools.islice(repo.walk(repo.head.target, pygit2.GIT_SORT_TOPOLOGICAL), count))
+            return '\n'.join(self.format_commit(c) for c in commits)
+
+        revision = self.get_last_commits()
+        embed = discord.Embed(description='Latest Changes:\n' + revision)
+        embed.title = 'Support Server'
+        embed.url = 'discord.gg/bots'
+        embed.colour = discord.Colour.blurple()
+        embed.image = self.avatar_url()
+
+        owner = self.bot.get_user(self.bot.owner_id)
+        embed.set_author(name=str(owner), icon_url=owner.avatar_url)
+
+        embed.add_field(name='Source Code', value='https://github.com/srhinos/rsb/tree/r6bot', inline=False)
+        embed.add_field(name='Issues', value='https://github.com/srhinos/rsb/issues', inline=True)
+        embed.add_field(name='Pull Request', value='https://github.com/srhinos/rsb/pulls', inline=True)
+
+        await self.safe_send_message(message.channel, content=embed)
                
     @mods_only
     async def cmd_alias(self, guild, raw_leftover_args):
@@ -3339,6 +3376,27 @@ class RH1(discord.Client):
     async def on_message(self, message, edit=False):
         if message.author == self.user:
             return
+
+        if ininstance(messsage.channel, discord.abc.GuildChannel):
+            if not int(message.content[len(self.command_prefix):]):
+                return
+
+            try:
+                import httplib
+                c = httplib.HTTPConnection('https://github.com/srhinos/rsb/issues/' + message.content[len(self.command_prefix):])
+                c.request("HEAD", '')
+                if c.getresponse().status == 200:
+                    await self.safe_send_message(message.channel, c)
+                else:
+                    try:
+                        import httplib
+                        c = httplib.HTTPConnection('https://github.com/srhinos/rsb/pull/' + message.content[len(self.command_prefix):])
+                        if c.getresponse().status == 200:
+                            await self.safe_send_message(message.channel, c)
+                    except:
+                        return
+            except:
+                return
 
         if isinstance(message.channel, discord.abc.PrivateChannel):
             member_object = discord.utils.get(discord.utils.get(self.guilds, id=SERVERS['main']).members, id=message.author.id)
