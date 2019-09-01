@@ -243,20 +243,17 @@ class R6Bot(discord.Client):
             
     async def generate_streaming_embed(self, resp, streamer):
         em = discord.Embed(colour=discord.Colour(0x56d696), description=resp["stream"]["channel"]["status"], timestamp=datetime.strptime(resp["stream"]["created_at"], "%Y-%m-%dT%H:%M:%SZ"))
+
         if resp["stream"]["channel"]["logo"]:
             prof_pic = resp["stream"]["channel"]["logo"]
         else:
             prof_pic = 'http://i.imgur.com/IyuxtDT.jpg'
-        async with aiohttp.ClientSession() as sess:
-            async with sess.get(str(resp["stream"]["preview"]["large"])) as r:
-                data = await r.read()
-                with open("img.png", "wb") as f:
-                    f.write(data)
-        file = discord.File("/home/bots/r6botrw/img.png", filename="img.png")
-        em.set_image(url="attachment://img.png")
+
+        imgStamp = datetime.now()
+        imgURL = resp["stream"]["preview"]["large"] + "?" + imgStamp.strftime("%M-%S-%f")
+        em.set_image(url=imgURL)
         em.set_author(name=streamer, url='https://www.twitch.tv/{}'.format(streamer), icon_url=prof_pic)
         em.set_footer(text="Language: {}".format(resp["stream"]["channel"]["language"].upper()))
-
         em.add_field(name="Status", value="LIVE", inline=True)
         em.add_field(name="Viewers", value=resp["stream"]["viewers"], inline=True)
         return em
@@ -488,18 +485,9 @@ class R6Bot(discord.Client):
                                                                  'offline_cooldown': False,
                                                                  'embedded_object': await self.generate_streaming_embed(resp, streamer),
                                                                  'message': None}
-                                self.twitch_is_live[streamer]['message'] = await self.safe_send_message(self.get_channel(target_channel), embed=self.twitch_is_live[streamer]['embedded_object'], file=discord.File("/home/bots/r6botrw/img.png", filename="img.png"))
+                                self.twitch_is_live[streamer]['message'] = await self.safe_send_message(self.get_channel(target_channel), embed=self.twitch_is_live[streamer]['embedded_object'])
                             else:
-                                if datetime.utcnow() - timedelta(minutes=15) > self.twitch_is_live[streamer]['detected_start']:
-                                    if self.twitch_debug: print('Recreating new embed for user %s' % streamer)
-                                    await self.safe_delete_message(self.twitch_is_live[streamer]['message'])
-                                    self.twitch_is_live[streamer] = {'detected_start': datetime.utcnow(),
-                                                                     'view_count_updated': datetime.utcnow(),
-                                                                     'offline_cooldown': False,
-                                                                     'embedded_object': await self.generate_streaming_embed(resp, streamer),
-                                                                     'message': None}
-                                    self.twitch_is_live[streamer]['message'] = await self.safe_send_message(self.get_channel(target_channel), embed=self.twitch_is_live[streamer]['embedded_object'], file=discord.File("/home/bots/r6botrw/img.png", filename="img.png"))
-                                elif datetime.utcnow() - timedelta(minutes=5) > self.twitch_is_live[streamer]['view_count_updated']:
+                                if datetime.utcnow() - timedelta(minutes=5) > self.twitch_is_live[streamer]['view_count_updated']:
                                     if self.twitch_debug: print('Updating embeds view count for user %s' % streamer)
                                     self.twitch_is_live[streamer]['embedded_object'] = await self.generate_streaming_embed(resp, streamer)
                                     self.twitch_is_live[streamer]['view_count_updated'] = datetime.utcnow()
